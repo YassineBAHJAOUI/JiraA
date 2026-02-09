@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createJiraTicket as createJiraTicketDB } from "./db";
 import { createJiraTicket as createJiraTicketAPI, CreateTicketData } from "./jira";
 import { TRPCError } from "@trpc/server";
+import { trackTicketCreation, trackJiraError } from "./telemetry";
 
 export const appRouter = router({
   system: systemRouter,
@@ -38,6 +39,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        const startTime = Date.now();
         try {
           const jiraResponse = await createJiraTicketAPI(input as CreateTicketData);
 
@@ -58,12 +60,20 @@ export const appRouter = router({
             createdBy: null,
           });
 
+          // Tracker la création réussie
+          trackTicketCreation(input.technology, input.environment, true, Date.now() - startTime);
+
           return {
             success: true,
             key: jiraResponse.key,
             url: jiraResponse.url,
           };
         } catch (error) {
+          // Tracker l'erreur
+          const errorType = error instanceof Error ? error.constructor.name : 'Unknown';
+          trackTicketCreation(input.technology, input.environment, false, Date.now() - startTime);
+          trackJiraError(errorType, input.technology);
+
           console.error("Error creating Jira ticket:", error);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -97,43 +107,55 @@ export const appRouter = router({
           const results: Array<{ key: string; url: string }> = [];
 
           for (const tech of input.technologies) {
-            const ticketData: CreateTicketData = {
-              technology: tech.technology,
-              solutionCode: tech.solutionCode,
-              environment: tech.environment,
-              squad: input.squad,
-              email: input.email,
-              cpu: tech.cpu,
-              ram: tech.ram,
-              dbEngine: tech.dbEngine,
-              diskSize: tech.diskSize,
-              storageType: tech.storageType,
-              storageQuota: tech.storageQuota,
-            };
+            const ticketStartTime = Date.now();
+            try {
+              const ticketData: CreateTicketData = {
+                technology: tech.technology,
+                solutionCode: tech.solutionCode,
+                environment: tech.environment,
+                squad: input.squad,
+                email: input.email,
+                cpu: tech.cpu,
+                ram: tech.ram,
+                dbEngine: tech.dbEngine,
+                diskSize: tech.diskSize,
+                storageType: tech.storageType,
+                storageQuota: tech.storageQuota,
+              };
 
-            const jiraResponse = await createJiraTicketAPI(ticketData);
+              const jiraResponse = await createJiraTicketAPI(ticketData);
 
-            await createJiraTicketDB({
-              jiraKey: jiraResponse.key,
-              jiraUrl: jiraResponse.url,
-              technology: tech.technology,
-              solutionCode: tech.solutionCode,
-              environment: tech.environment,
-              squad: input.squad,
-              email: input.email,
-              cpu: tech.cpu,
-              ram: tech.ram,
-              dbEngine: tech.dbEngine,
-              diskSize: tech.diskSize,
-              storageType: tech.storageType,
-              storageQuota: tech.storageQuota,
-              createdBy: null,
-            });
+              await createJiraTicketDB({
+                jiraKey: jiraResponse.key,
+                jiraUrl: jiraResponse.url,
+                technology: tech.technology,
+                solutionCode: tech.solutionCode,
+                environment: tech.environment,
+                squad: input.squad,
+                email: input.email,
+                cpu: tech.cpu,
+                ram: tech.ram,
+                dbEngine: tech.dbEngine,
+                diskSize: tech.diskSize,
+                storageType: tech.storageType,
+                storageQuota: tech.storageQuota,
+                createdBy: null,
+              });
 
-            results.push({
-              key: jiraResponse.key,
-              url: jiraResponse.url,
-            });
+              // Tracker la création réussie
+              trackTicketCreation(tech.technology, tech.environment, true, Date.now() - ticketStartTime);
+
+              results.push({
+                key: jiraResponse.key,
+                url: jiraResponse.url,
+              });
+            } catch (techError) {
+              // Tracker l'erreur pour cette technologie
+              const errorType = techError instanceof Error ? techError.constructor.name : 'Unknown';
+              trackTicketCreation(tech.technology, tech.environment, false, Date.now() - ticketStartTime);
+              trackJiraError(errorType, tech.technology);
+              throw techError;
+            }
           }
 
           return results;

@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { initializeMetrics, getMetrics, metricsMiddleware } from "../telemetry";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -30,9 +31,29 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  
+  // Initialiser les métriques Prometheus
+  initializeMetrics();
+  
+  // Middleware pour tracker les requêtes API
+  app.use(metricsMiddleware);
+  
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  // Endpoint pour exposer les métriques Prometheus
+  app.get("/metrics", async (req, res) => {
+    try {
+      const metrics = await getMetrics();
+      res.set("Content-Type", "text/plain; charset=utf-8");
+      res.send(metrics);
+    } catch (error) {
+      console.error("Error retrieving metrics:", error);
+      res.status(500).send("Error retrieving metrics");
+    }
+  });
+  
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
@@ -44,6 +65,7 @@ async function startServer() {
     })
   );
   // development mode uses Vite, production mode uses static files
+  // Serve static files and Vite
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
@@ -59,7 +81,11 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`Prometheus metrics available at http://localhost:${port}/metrics`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
+});
