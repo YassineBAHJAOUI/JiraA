@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1768861920074,
+      "tag": "0000_perpetual_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1768862096560,
+      "tag": "0001_cynical_jack_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768948029615,
+      "tag": "0002_workable_scalphunter",
+      "breakpoints": true
+    }
+  ]
+}

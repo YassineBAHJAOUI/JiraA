@@ -1,0 +1,1 @@
+ALTER TABLE `jira_tickets` MODIFY COLUMN `createdBy` int;

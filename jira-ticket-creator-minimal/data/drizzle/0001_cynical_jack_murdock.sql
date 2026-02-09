@@ -1,0 +1,21 @@
+CREATE TABLE `jira_tickets` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`jiraKey` varchar(64) NOT NULL,
+	`jiraUrl` text NOT NULL,
+	`technology` varchar(64) NOT NULL,
+	`solutionCode` varchar(255) NOT NULL,
+	`environment` varchar(32) NOT NULL,
+	`squad` varchar(255) NOT NULL,
+	`email` varchar(320) NOT NULL,
+	`cpu` int,
+	`ram` int,
+	`dbEngine` varchar(64),
+	`diskSize` int,
+	`storageType` varchar(64),
+	`storageQuota` int,
+	`createdBy` int NOT NULL,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `jira_tickets_id` PRIMARY KEY(`id`),
+	CONSTRAINT `jira_tickets_jiraKey_unique` UNIQUE(`jiraKey`)
+);
